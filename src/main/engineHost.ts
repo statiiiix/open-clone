@@ -75,6 +75,11 @@ export class EngineHost {
     }
   }
 
+  /** Load the model ahead of the first request, so that request does not wait for it. */
+  warm(): void {
+    void this.start().catch(() => {});
+  }
+
   cancel(): void {
     this.cancelRequested = true;
     if (this.child && this.activeJob !== null && this.activeJob > 0) this.child.postMessage({ id: this.activeJob, type: 'cancel' } satisfies EngineRequest);

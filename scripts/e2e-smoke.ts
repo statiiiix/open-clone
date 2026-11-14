@@ -4,15 +4,21 @@ import { _electron as electron } from 'playwright-core';
 import path from 'node:path';
 
 const shot = (name: string) => path.resolve('proof', `e2e-${name}.png`);
-const sample = process.env.E2E_SAMPLE ?? path.resolve('proof/model/default_voice.wav');
+const sample = process.env.E2E_SAMPLE ?? path.resolve('proof/sample-15s.wav');
 
 async function main() {
-  const app = await electron.launch({ args: ['.'] });
+  const app = await electron.launch(process.env.E2E_APP ? { executablePath: process.env.E2E_APP } : { args: ['.'] });
   const page = await app.firstWindow();
   page.on('console', (m) => { if (m.type() === 'error') console.log('[console error]', m.text()); });
   page.on('pageerror', (e) => console.log('[page error]', e.message));
   await page.waitForSelector('.app, .center-screen .card');
-  if (await page.locator('.center-screen .card').count()) throw new Error('Model is missing: the download screen is showing.');
+  if (await page.locator('.center-screen .card').count()) {
+    console.log('download screen:', (await page.locator('.center-screen .card p').first().innerText()).slice(0, 90));
+    await page.screenshot({ path: shot('0-download') });
+    await page.click('.center-screen button.primary');
+    await page.waitForSelector('.app', { timeout: 1_800_000 });
+    console.log('model download finished, main screen shown');
+  }
   await page.screenshot({ path: shot('1-empty') });
 
   await page.click('.new-voice');

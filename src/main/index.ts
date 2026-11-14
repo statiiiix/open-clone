@@ -11,7 +11,7 @@ import { ensureModel, LM_VARIANT, missingFiles, MODEL_FILES } from './modelDownl
 import { Store } from './store';
 
 const MAX_TEXT_CHARS = 5000;
-const MIN_SAMPLE = 3 * SAMPLE_RATE;
+const MIN_SAMPLE = 10 * SAMPLE_RATE;
 const MAX_SAMPLE = 30 * SAMPLE_RATE;
 
 let win: BrowserWindow | null = null;
@@ -33,7 +33,7 @@ function createWindow(): void {
 
 function isExpression(e: unknown): e is ExpressionId { return typeof e === 'string' && e in PRESETS; }
 function checkAudio(a: unknown): Float32Array {
-  if (!(a instanceof Float32Array) || a.length < MIN_SAMPLE || a.length > MAX_SAMPLE) throw new Error('That sample cannot be used. Use 3 to 30 seconds of audio.');
+  if (!(a instanceof Float32Array) || a.length < MIN_SAMPLE || a.length > MAX_SAMPLE) throw new Error('That sample cannot be used. Use 10 to 30 seconds of audio.');
   return a;
 }
 
@@ -45,10 +45,16 @@ function wire(): void {
   let downloading: Promise<void> | null = null;
   app.on('before-quit', () => engine.dispose());
 
-  ipcMain.handle('model:status', () => (missingFiles(modelDir).length ? 'missing' : 'ready'));
+  ipcMain.handle('model:status', () => {
+    if (missingFiles(modelDir).length) return 'missing';
+    engine.warm();
+    return 'ready';
+  });
   ipcMain.handle('model:size', () => MODEL_FILES.reduce((n, f) => n + f.size, 0));
   ipcMain.handle('model:download', () => {
-    downloading ??= ensureModel(modelDir, (done, total) => send('model:progress', done, total)).finally(() => { downloading = null; });
+    downloading ??= ensureModel(modelDir, (done, total) => send('model:progress', done, total))
+      .then(() => engine.warm())
+      .finally(() => { downloading = null; });
     return downloading;
   });
 

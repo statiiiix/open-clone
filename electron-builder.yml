@@ -1,0 +1,32 @@
+appId: com.staticscodes.openclone
+productName: Open Clone
+copyright: Copyright © 2026 statiiiix. MIT licensed.
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - LICENSE
+  # the voice runtime ships binaries for every platform; keep only this Mac's chip
+  - "!node_modules/onnxruntime-node/bin/*/linux/**"
+  - "!node_modules/onnxruntime-node/bin/*/win32/**"
+  - "!node_modules/onnxruntime-node/bin/*/darwin/!(${arch})/**"
+  - "!node_modules/onnxruntime-node/{script,lib/**/*.ts,lib/**/*.map}"
+asarUnpack:
+  - node_modules/onnxruntime-node/**
+npmRebuild: false
+mac:
+  category: public.app-category.music
+  target: dmg
+  minimumSystemVersion: "12.0"
+  artifactName: Open-Clone-${version}-${arch}.${ext}
+  icon: build/icon.icns
+  # "-" = ad-hoc signature (required for Apple Silicon to launch at all).
+  # Replace with a Developer ID and add notarization before selling.
+  identity: "-"
+  hardenedRuntime: false
+  extendInfo:
+    NSMicrophoneUsageDescription: Open Clone records your voice to create a voice clone. Recordings stay on this Mac.
+dmg:
+  title: Open Clone ${version}

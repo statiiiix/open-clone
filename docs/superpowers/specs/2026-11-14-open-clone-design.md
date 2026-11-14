@@ -1,7 +1,7 @@
 # Open Clone — design
 
 Date: 2026-11-14
-Status: awaiting approval
+Status: approved 2026-11-14; amended during build (see Amendments)
 
 ## Intent
 
@@ -211,3 +211,15 @@ and verifies it. After that the app works offline.
 - Component structure and state management in the UI.
 - Model file verification method and download resume behaviour.
 - JSON index format.
+
+## Amendments made during the build
+
+- **Pace slider removed.** The model export has no pace control. Controls are Intensity and Variation.
+- **Red is allowed in one place:** the recording screen (live waveform, REC marker, stop button), at the owner's request.
+- **Sample length:** minimum 10 seconds, maximum 30 (longer clips are trimmed). Quiet or distorted samples get a warning.
+- **Runtime pinned to `onnxruntime-node` 1.23.2**, the last release with an Intel Mac binary (risk 3 came true).
+- **Model variant: `language_model_q4`.** First-launch download is 1.55 GB.
+- **Measured on the 2017 Intel MacBook Pro:** 5 to 11 seconds of work per second of speech; model load 90 to 140 seconds; about
+  1.8 GB of memory. The half-precision variant was no faster and used 4 GB.
+- **Owner has not yet listened to the proof clips.** The go/no-go on voice quality and on how distinct the expressions sound is
+  still open.
