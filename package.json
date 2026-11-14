@@ -1,22 +1,36 @@
 {
   "name": "open-clone",
+  "productName": "Open Clone",
   "version": "0.1.0",
   "description": "Clone your voice and speak with expression, entirely on your Mac.",
   "license": "MIT",
-  "type": "module",
   "private": true,
   "scripts": {
     "test": "vitest run",
-    "proof": "tsx scripts/engine-proof.ts"
+    "proof": "tsx scripts/engine-proof.ts",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "playwright-core": "^1.65.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   },
   "dependencies": {
     "@huggingface/tokenizers": "0.2.0",
     "onnxruntime-node": "1.23.2"
-  }
+  },
+  "main": "out/main/index.js"
 }

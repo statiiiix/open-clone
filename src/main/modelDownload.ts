@@ -8,7 +8,18 @@ export const MODEL_BASE_URL = 'https://huggingface.co/onnx-community/chatterbox-
 export const LM_VARIANT = 'language_model_q4';
 
 /** Exact byte sizes, so a partial or damaged file is never mistaken for a complete one. */
-export const MODEL_FILES: ModelFile[] = [];
+export const MODEL_FILES: ModelFile[] = [
+  { path: 'tokenizer.json', size: 28543 },
+  { path: 'tokenizer_config.json', size: 244 },
+  { path: 'onnx/speech_encoder.onnx', size: 1184608 },
+  { path: 'onnx/speech_encoder.onnx_data', size: 591274880 },
+  { path: 'onnx/embed_tokens.onnx', size: 13286 },
+  { path: 'onnx/embed_tokens.onnx_data', size: 61640704 },
+  { path: 'onnx/language_model_q4.onnx', size: 227911 },
+  { path: 'onnx/language_model_q4.onnx_data', size: 353621248 },
+  { path: 'onnx/conditional_decoder.onnx', size: 6350448 },
+  { path: 'onnx/conditional_decoder.onnx_data', size: 533970816 },
+];
 
 export function missingFiles(dir: string, files: ModelFile[] = MODEL_FILES): ModelFile[] {
   return files.filter((f) => {
