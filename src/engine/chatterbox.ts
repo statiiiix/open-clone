@@ -2,6 +2,7 @@ import { Tokenizer } from '@huggingface/tokenizers';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as ort from 'onnxruntime-node';
+import { normalizeLevel } from '../shared/level';
 import type { GenParams } from '../shared/types';
 import { applyRepetitionPenalty, pickToken } from './sampling';
 
@@ -14,6 +15,8 @@ const REPETITION_PENALTY = 1.2;
 
 /** Upper bound on speech tokens per chunk (25 per second of audio), so generation always ends. */
 export const MAX_NEW_TOKENS = 1000;
+
+const MAX_VOICE_SAMPLES = 30 * 24000;
 
 export interface VoicePrompt {
   condEmb: ort.Tensor;
@@ -80,7 +83,9 @@ export class ChatterboxEngine {
 
   /** Turn a 24 kHz mono clip into the conditioning the model speaks with. */
   async prepareVoice(audio24k: Float32Array): Promise<VoicePrompt> {
-    const out = await this.speechEncoder.run({ audio_values: new ort.Tensor('float32', audio24k, [1, audio24k.length]) });
+    // This model conditions on the start of the clip; more than 30 s only costs time and memory.
+    const audio = normalizeLevel(audio24k.length > MAX_VOICE_SAMPLES ? audio24k.subarray(0, MAX_VOICE_SAMPLES) : audio24k);
+    const out = await this.speechEncoder.run({ audio_values: new ort.Tensor('float32', audio, [1, audio.length]) });
     const [condEmb, promptToken, xVector, promptFeat] = this.speechEncoder.outputNames.map((n) => out[n]);
     return { condEmb, promptToken, xVector, promptFeat };
   }

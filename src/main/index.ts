@@ -11,8 +11,9 @@ import { ensureModel, LM_VARIANT, missingFiles, MODEL_FILES } from './modelDownl
 import { Store } from './store';
 
 const MAX_TEXT_CHARS = 5000;
-const MIN_SAMPLE = 10 * SAMPLE_RATE;
-const MAX_SAMPLE = 30 * SAMPLE_RATE;
+const MIN_VOICE_SAMPLE = 60 * SAMPLE_RATE;
+const MIN_EXPRESSION_SAMPLE = 10 * SAMPLE_RATE;
+const MAX_SAMPLE = 60 * SAMPLE_RATE;
 
 let win: BrowserWindow | null = null;
 const send = (channel: string, ...args: unknown[]) => { if (win && !win.isDestroyed()) win.webContents.send(channel, ...args); };
@@ -32,8 +33,8 @@ function createWindow(): void {
 }
 
 function isExpression(e: unknown): e is ExpressionId { return typeof e === 'string' && e in PRESETS; }
-function checkAudio(a: unknown): Float32Array {
-  if (!(a instanceof Float32Array) || a.length < MIN_SAMPLE || a.length > MAX_SAMPLE) throw new Error('That sample cannot be used. Use 10 to 30 seconds of audio.');
+function checkAudio(a: unknown, min: number): Float32Array {
+  if (!(a instanceof Float32Array) || a.length < min || a.length > MAX_SAMPLE) throw new Error(`That sample cannot be used. Use ${min / SAMPLE_RATE} to 60 seconds of audio.`);
   return a;
 }
 
@@ -59,10 +60,10 @@ function wire(): void {
   });
 
   ipcMain.handle('voices:list', () => store.listVoices());
-  ipcMain.handle('voices:create', (_, name: unknown, audio: unknown) => store.createVoice(String(name ?? ''), checkAudio(audio)));
+  ipcMain.handle('voices:create', (_, name: unknown, audio: unknown) => store.createVoice(String(name ?? ''), checkAudio(audio, MIN_VOICE_SAMPLE)));
   ipcMain.handle('voices:setExpressionSample', (_, id: unknown, e: unknown, audio: unknown) => {
     if (!isExpression(e)) throw new Error('Unknown expression.');
-    return store.setExpressionSample(String(id), e, audio === null ? null : checkAudio(audio));
+    return store.setExpressionSample(String(id), e, audio === null ? null : checkAudio(audio, MIN_EXPRESSION_SAMPLE));
   });
   ipcMain.handle('voices:rename', (_, id: unknown, name: unknown) => store.renameVoice(String(id), String(name ?? '')));
   ipcMain.handle('voices:remove', (_, id: unknown) => store.deleteVoice(String(id)));

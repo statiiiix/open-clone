@@ -1,8 +1,10 @@
 import { SAMPLE_RATE } from '../shared/types';
 
-/** Below this the clone is unreliable; above 30 s the model gains nothing. */
-export const MIN_SAMPLE_SEC = 10;
-export const MAX_SAMPLE_SEC = 30;
+/** A voice needs one full minute of speech: shorter samples gave weaker clones in listening tests. */
+export const MIN_SAMPLE_SEC = 60;
+export const MAX_SAMPLE_SEC = 60;
+/** An extra sample for a single expression may be shorter; the main sample already carries the voice. */
+export const EXPRESSION_MIN_SEC = 10;
 const SILENCE_RMS = 0.005;
 const QUIET_RMS = 0.03;
 
@@ -11,9 +13,9 @@ export type SampleCheck =
   | { ok: true; audio: Float32Array; warnings: SampleWarning[] }
   | { ok: false; reason: 'too-short' | 'silent' };
 
-/** Is this clip usable as a voice sample? Long clips are trimmed to the first 30 seconds. */
-export function checkSample(audio: Float32Array): SampleCheck {
-  if (audio.length < MIN_SAMPLE_SEC * SAMPLE_RATE) return { ok: false, reason: 'too-short' };
+/** Is this clip usable as a voice sample? Long clips are trimmed to the first minute. */
+export function checkSample(audio: Float32Array, minSec = MIN_SAMPLE_SEC): SampleCheck {
+  if (audio.length < minSec * SAMPLE_RATE) return { ok: false, reason: 'too-short' };
   const trimmed = audio.length > MAX_SAMPLE_SEC * SAMPLE_RATE ? audio.slice(0, MAX_SAMPLE_SEC * SAMPLE_RATE) : audio;
   let sum = 0, loud = 0;
   for (let i = 0; i < trimmed.length; i++) {
@@ -28,8 +30,10 @@ export function checkSample(audio: Float32Array): SampleCheck {
   return { ok: true, audio: trimmed, warnings };
 }
 
+const lengthName = (sec: number) => (sec === 60 ? 'one minute' : `${sec} seconds`);
+export const tooShortMessage = (minSec: number) => `That sample is under ${lengthName(minSec)}. Use at least ${lengthName(minSec)} of clear speech.`;
+
 export const SAMPLE_MESSAGES = {
-  'too-short': 'That sample is under 10 seconds. Use 10 to 30 seconds of clear speech.',
   silent: 'That sample is silent. Check the file or your microphone.',
   unreadable: 'That file could not be read as audio.',
   'mic-denied': 'Microphone access is off. Allow it in System Settings, or upload a file instead.',

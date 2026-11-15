@@ -2,7 +2,7 @@
 
 Clone your voice and make it speak with expression, entirely on your own Mac.
 
-Upload or record 10 to 30 seconds of your voice, type some text, pick an expression (Neutral, Happy, Sad, Excited, Angry, Calm) and
+Upload or record one minute of your voice, type some text, pick an expression (Neutral, Happy, Sad, Excited, Angry, Calm) and
 Open Clone speaks it in your voice. No account, no cloud: your voice samples and everything you generate stay on your computer.
 The only network request the app makes is the one-time download of its voice model.
 
@@ -27,7 +27,7 @@ model takes one to two minutes to load after launch. Apple Silicon Macs are expe
 
 ## Getting a good clone
 
-- Record 10 to 30 seconds in a quiet room, close to the microphone, speaking the way you normally do.
+- Record the full minute in a quiet room, close to the microphone, speaking the way you normally do.
 - One speaker only. No music, no echo, no background noise.
 - For stronger expressions, open **Expressions** on a voice and record a short sample in each mood. The model imitates the delivery
   of the sample it is given, so a sample recorded while sounding excited gives a far more excited result than the slider alone.

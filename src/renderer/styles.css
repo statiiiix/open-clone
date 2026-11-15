@@ -105,7 +105,12 @@ input[type='range']:disabled::-webkit-slider-thumb { background: var(--muted); }
 .rec-fill { height: 100%; background: var(--rec); border-radius: 2px; }
 .rec-min { position: absolute; top: -4px; width: 1px; height: 11px; background: var(--fg); }
 .script { background: #f7f7f7; border-radius: var(--r); padding: 12px; margin: 12px 0; }
-.script p { margin: 0; font-size: 15px; line-height: 1.55; }
+.script { max-height: 190px; overflow-y: auto; }
+.script p { margin: 0 0 8px; font-size: 15px; line-height: 1.55; }
+.script p:last-child { margin-bottom: 0; }
+.rec-coach { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.rec-coach.quiet, .rec-coach.silent, .rec-coach.loud { color: var(--rec); }
+.rec-coach.starting, .rec-coach.paused { color: var(--muted, #8a8a8a); }
 .rec-stop { width: 100%; display: inline-flex; justify-content: center; align-items: center; gap: 8px; padding: 10px; font-weight: 600; background: var(--rec); color: #fff; border-color: var(--rec); }
 .rec-stop:hover:not(:disabled) { border-color: var(--rec); filter: brightness(0.95); }
 .rec-stop .square { width: 10px; height: 10px; background: #fff; border-radius: 2px; }

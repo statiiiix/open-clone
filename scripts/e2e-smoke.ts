@@ -4,7 +4,7 @@ import { _electron as electron } from 'playwright-core';
 import path from 'node:path';
 
 const shot = (name: string) => path.resolve('proof', `e2e-${name}.png`);
-const sample = process.env.E2E_SAMPLE ?? path.resolve('proof/sample-15s.wav');
+const sample = process.env.E2E_SAMPLE ?? path.resolve('proof/sample-65s.wav');
 
 async function main() {
   const app = await electron.launch(process.env.E2E_APP ? { executablePath: process.env.E2E_APP } : { args: ['.'] });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PRESETS } from '../../shared/presets';
 import type { ExpressionId, Voice } from '../../shared/types';
 import { messageOf } from '../errors';
+import { EXPRESSION_MIN_SEC } from '../audio';
 import { SamplePicker } from './SamplePicker';
 
 const IDS = (Object.keys(PRESETS) as ExpressionId[]).filter((e) => e !== 'neutral');
@@ -42,7 +43,7 @@ export function ExpressionSamples({ voice, onClose, onChanged }: { voice: Voice;
               </div>
               {open === e && (
                 <div className="expr-pick">
-                  <SamplePicker onChange={setPending} />
+                  <SamplePicker onChange={setPending} minSec={EXPRESSION_MIN_SEC} />
                   <button className="primary" disabled={!pending} onClick={() => pending && void apply(e, pending)}>Use this sample</button>
                 </div>
               )}
