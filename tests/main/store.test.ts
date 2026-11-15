@@ -13,7 +13,7 @@ beforeEach(() => {
 const audio = (sec: number) => new Float32Array(24000 * sec).fill(0.25);
 const item = (voiceId: string) => ({
   voiceId, voiceName: 'Me', text: 'Hello', expression: 'happy' as const,
-  params: { intensity: 0.8, variation: 0.8 }, durationSec: 1.5,
+  durationSec: 1.5,
 });
 
 it('creates, lists and persists voices', () => {
@@ -36,6 +36,32 @@ it('uses an expression sample when present, else the main sample', () => {
   expect(after.samples.happy).toBeUndefined();
   expect(store.samplePathFor(v.id, 'happy')).toMatch(/neutral\.f32$/);
   expect(fs.existsSync(path.join(root, 'voices', v.id, 'happy.f32'))).toBe(false);
+});
+it('records the length of the main sample', () => {
+  expect(store.createVoice('Me', audio(60)).sampleSec).toBe(60);
+});
+it('stores the transcript of each sample and keeps it across restarts', () => {
+  const v = store.createVoice('Me', audio(5));
+  expect(v.transcripts).toBeUndefined();
+  store.setTranscript(v.id, 'neutral', 'Hello there.');
+  expect(new Store(root).listVoices()[0].transcripts).toEqual({ neutral: 'Hello there.' });
+  expect(() => store.setTranscript(v.id, 'sad', 'x')).toThrow(/no sample/);
+});
+it('drops a transcript when its sample is replaced or removed', () => {
+  const v = store.createVoice('Me', audio(5));
+  store.setExpressionSample(v.id, 'sad', audio(4));
+  store.setTranscript(v.id, 'neutral', 'Main.');
+  store.setTranscript(v.id, 'sad', 'Old words.');
+  expect(store.setExpressionSample(v.id, 'sad', audio(4)).transcripts).toEqual({ neutral: 'Main.' });
+  store.setTranscript(v.id, 'sad', 'New words.');
+  expect(store.setExpressionSample(v.id, 'sad', null).transcripts).toEqual({ neutral: 'Main.' });
+});
+it('loads voices saved before transcripts existed', () => {
+  fs.mkdirSync(path.join(root, 'voices'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'voices', 'index.json'), JSON.stringify([{ id: 'old', name: 'me', createdAt: '2026-11-15T05:53:21.292Z', samples: { neutral: 'neutral.f32' } }]));
+  const v = new Store(root).listVoices()[0];
+  expect(v.transcripts).toBeUndefined();
+  expect(v.sampleSec).toBeUndefined();
 });
 it('will not remove the main sample', () => {
   const v = store.createVoice('Me', audio(5));

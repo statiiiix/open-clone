@@ -8,7 +8,7 @@ import { ModelDownload } from './components/ModelDownload';
 import { NewVoiceSheet } from './components/NewVoiceSheet';
 import { VoiceList } from './components/VoiceList';
 import { messageOf } from './errors';
-import { initialComposer, type ComposerState } from './state';
+import { initialComposer, withProgress, type ComposerState } from './state';
 
 const api = () => window.openclone;
 
@@ -23,13 +23,15 @@ export function App() {
   const [exprVoiceId, setExprVoiceId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Voice | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
   const player = useRef<{ audio: HTMLAudioElement; url: string } | null>(null);
 
   useEffect(() => {
     void api().model.status().then(setModel);
     void api().voices.list().then((v) => { setVoices(v); setSelectedId(v[0]?.id ?? null); });
     void api().history.list().then(setHistory);
-    return api().generate.onProgress((chunk, of) => setComposer((s) => ({ ...s, progress: [chunk, of] })));
+    void api().system.slowEngine().then(setSlow);
+    return api().generate.onProgress((chunk, of) => setComposer((s) => withProgress(s, chunk, of, Date.now())));
   }, []);
 
   const stop = useCallback(() => {
@@ -60,16 +62,16 @@ export function App() {
   const generate = async () => {
     if (!selectedId) return;
     setError(null);
-    setComposer((s) => ({ ...s, busy: true, progress: null }));
+    setComposer((s) => ({ ...s, busy: true, progress: null, speakingSince: null }));
     try {
-      const item = await api().generate.start({ voiceId: selectedId, text: composer.text, expression: composer.expression, params: composer.params });
+      const item = await api().generate.start({ voiceId: selectedId, text: composer.text, expression: composer.expression });
       setHistory((h) => [item, ...h]);
       void play(item.id);
     } catch (err) {
       const msg = messageOf(err);
       if (msg !== CANCELLED) setError(msg);
     } finally {
-      setComposer((s) => ({ ...s, busy: false, progress: null }));
+      setComposer((s) => ({ ...s, busy: false, progress: null, speakingSince: null }));
     }
   };
 
@@ -100,7 +102,7 @@ export function App() {
         onDelete={setConfirmDelete} onExpressions={(v) => setExprVoiceId(v.id)}
       />
       <main>
-        <Composer state={composer} voice={voice} error={error} onChange={setComposer} onGenerate={() => void generate()} onCancel={() => void api().generate.cancel()} />
+        <Composer state={composer} voice={voice} slow={slow} error={error} onChange={setComposer} onGenerate={() => void generate()} onCancel={() => void api().generate.cancel()} />
         <History
           items={history} playingId={playingId}
           onToggle={(id) => (playingId === id ? stop() : void play(id))}

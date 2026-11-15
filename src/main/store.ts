@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ExpressionId, HistoryItem, Voice } from '../shared/types';
+import { SAMPLE_RATE, type ExpressionId, type HistoryItem, type Voice } from '../shared/types';
 
 const MAX_NAME = 60;
 
@@ -54,7 +54,7 @@ export class Store {
   listVoices(): Voice[] { return this.voices.items; }
 
   createVoice(name: string, audio24k: Float32Array): Voice {
-    const voice: Voice = { id: randomUUID(), name: cleanName(name), createdAt: new Date().toISOString(), samples: { neutral: 'neutral.f32' } };
+    const voice: Voice = { id: randomUUID(), name: cleanName(name), createdAt: new Date().toISOString(), samples: { neutral: 'neutral.f32' }, sampleSec: audio24k.length / SAMPLE_RATE };
     fs.mkdirSync(this.voiceDir(voice.id), { recursive: true });
     fs.writeFileSync(path.join(this.voiceDir(voice.id), 'neutral.f32'), toBytes(audio24k));
     this.voices.items.push(voice);
@@ -68,11 +68,22 @@ export class Store {
     if (audio24k) {
       fs.writeFileSync(file, toBytes(audio24k));
       voice.samples[e] = `${e}.f32`;
+      delete voice.transcripts?.[e]; // the words changed with the audio
     } else {
       if (e === 'neutral') throw new Error('The main sample of a voice cannot be removed.');
       fs.rmSync(file, { force: true });
       delete voice.samples[e];
+      delete voice.transcripts?.[e];
     }
+    this.voices.save();
+    return voice;
+  }
+
+  /** Record the words spoken in one of a voice's samples. */
+  setTranscript(voiceId: string, e: ExpressionId, text: string): Voice {
+    const voice = this.voice(voiceId);
+    if (!voice.samples[e]) throw new Error('That voice has no sample for this expression.');
+    voice.transcripts = { ...voice.transcripts, [e]: text };
     this.voices.save();
     return voice;
   }
@@ -89,6 +100,11 @@ export class Store {
     this.voices.items = this.voices.items.filter((v) => v.id !== id);
     this.voices.save();
     fs.rmSync(this.voiceDir(id), { recursive: true, force: true });
+  }
+
+  /** Full path of one of a voice's sample files. */
+  sampleFile(voiceId: string, file: string): string {
+    return path.join(this.voiceDir(voiceId), path.basename(file));
   }
 
   samplePathFor(voiceId: string, e: ExpressionId): string {

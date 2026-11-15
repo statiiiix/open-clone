@@ -41,10 +41,11 @@ export function NewVoiceSheet({ onClose, onCreated }: { onClose: () => void; onC
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span>{CONSENT_TEXT}</span>
         </label>
+        {saving && <p className="muted small">Writing down the words in your sample so the clone can continue from them. The first time, this waits for the voice model to load.</p>}
         {error && <p className="error">{error}</p>}
         <div className="row end">
           <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="primary" disabled={!ready}>{saving ? 'Saving…' : 'Save voice'}</button>
+          <button type="submit" className="primary" disabled={!ready}>{saving ? 'Transcribing your sample…' : 'Save voice'}</button>
         </div>
       </form>
     </div>

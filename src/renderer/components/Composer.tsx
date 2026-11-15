@@ -1,11 +1,14 @@
-import { INTENSITY_RANGE, VARIATION_RANGE } from '../../shared/presets';
+import { useEffect, useState } from 'react';
 import type { Voice } from '../../shared/types';
+import { progressLine } from '../estimate';
 import { canGenerate, selectExpression, type ComposerState } from '../state';
 import { ExpressionPicker } from './ExpressionPicker';
 
 interface Props {
   state: ComposerState;
   voice: Voice | null;
+  /** this Mac takes minutes per sentence */
+  slow: boolean;
   error: string | null;
   onChange: (s: ComposerState) => void;
   onGenerate: () => void;
@@ -14,18 +17,15 @@ interface Props {
 
 const MAX_TEXT = 5000;
 
-export function Composer({ state, voice, error, onChange, onGenerate, onCancel }: Props) {
-  const slider = (label: string, hint: string, key: 'intensity' | 'variation', [min, max]: readonly [number, number]) => (
-    <label className="slider">
-      <span>{label}</span>
-      <input
-        type="range" min={min} max={max} step={0.05} value={state.params[key]} disabled={state.busy}
-        onChange={(e) => onChange({ ...state, params: { ...state.params, [key]: Number(e.target.value) } })}
-      />
-      <output>{state.params[key].toFixed(2)}</output>
-      <small className="muted">{hint}</small>
-    </label>
-  );
+export function Composer({ state, voice, slow, error, onChange, onGenerate, onCancel }: Props) {
+  // Tick once a second while generating, so the elapsed time and estimate stay current.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!state.busy) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [state.busy]);
 
   return (
     <section className="composer">
@@ -38,10 +38,6 @@ export function Composer({ state, voice, error, onChange, onGenerate, onCancel }
       />
       <div className="label">Expression</div>
       <ExpressionPicker value={state.expression} voice={voice} disabled={state.busy} onChange={(e) => onChange(selectExpression(state, e))} />
-      <div className="sliders">
-        {slider('Intensity', 'How strongly the expression comes through', 'intensity', INTENSITY_RANGE)}
-        {slider('Variation', 'Lower is steadier, higher is livelier', 'variation', VARIATION_RANGE)}
-      </div>
       <div className="row">
         {state.busy ? (
           <button className="primary" onClick={onCancel}>Cancel</button>
@@ -50,11 +46,12 @@ export function Composer({ state, voice, error, onChange, onGenerate, onCancel }
         )}
         {state.busy && (
           <span className="muted small">
-            <span className="spinner" /> {state.progress ? `Generating part ${state.progress[0]} of ${state.progress[1]}…` : 'Loading the voice model…'}
+            <span className="spinner" /> {progressLine(state.progress, state.speakingSince ? (now - state.speakingSince) / 1000 : 0)}
           </span>
         )}
         {!state.busy && <span className="muted small">{state.text.length > MAX_TEXT * 0.9 ? `${state.text.length} / ${MAX_TEXT}` : '⌘ Return'}</span>}
       </div>
+      {slow && !state.busy && <p className="muted small">On this Mac a sentence takes a few minutes.</p>}
       {error && <p className="error">{error}</p>}
     </section>
   );

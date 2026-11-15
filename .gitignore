@@ -4,3 +4,4 @@ dist
 proof/
 .superpowers/
 .DS_Store
+build/python-*/

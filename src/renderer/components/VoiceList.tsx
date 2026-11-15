@@ -35,6 +35,9 @@ export function VoiceList({ voices, selectedId, onSelect, onNew, onRename, onDel
             ) : (
               <button className="voice" onClick={() => onSelect(v.id)} title={v.name}>{v.name}</button>
             )}
+            {v.id === selectedId && (v.sampleSec ?? 0) < 60 && (
+              <p className="voice-note">Recorded under the old limit. A one-minute sample is more accurate.</p>
+            )}
             {v.id === selectedId && editing?.id !== v.id && (
               <div className="voice-actions">
                 <button onClick={() => onExpressions(v)}>Expressions</button>

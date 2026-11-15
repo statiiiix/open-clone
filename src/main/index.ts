@@ -1,13 +1,15 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CANCELLED, type GenerateRequest } from '../shared/api';
-import { clampParams, PRESETS } from '../shared/presets';
+import { PRESETS } from '../shared/presets';
+import { buildRecipe } from '../shared/recipe';
 import { splitText } from '../shared/splitText';
-import { SAMPLE_RATE, type ExpressionId } from '../shared/types';
+import { SAMPLE_RATE, type ExpressionId, type Voice } from '../shared/types';
 import { encodeWav } from '../shared/wav';
-import { CancelledError, EngineHost } from './engineHost';
-import { ensureModel, LM_VARIANT, missingFiles, MODEL_FILES } from './modelDownload';
+import { CancelledError, EngineHost, type EnginePaths } from './engineHost';
+import { ensureModels, MODEL_SETS, missingSets, totalSize } from './modelDownload';
 import { Store } from './store';
 
 const MAX_TEXT_CHARS = 5000;
@@ -38,32 +40,74 @@ function checkAudio(a: unknown, min: number): Float32Array {
   return a;
 }
 
+/** Where the voice engine lives: inside the app once packaged, in the project folder during development. */
+function enginePaths(root: string): EnginePaths {
+  const base = app.isPackaged ? process.resourcesPath : app.getAppPath();
+  return {
+    python: app.isPackaged ? path.join(base, 'python', 'bin', 'python3') : process.env.OPENCLONE_PYTHON ?? path.join(base, 'build', `python-${process.arch}`, 'bin', 'python3'),
+    script: app.isPackaged ? path.join(base, 'engine', 'engine.py') : path.join(base, 'python', 'engine.py'),
+    modelDir: path.join(root, MODEL_SETS[0].dir),
+    whisperDir: path.join(root, MODEL_SETS[1].dir),
+  };
+}
+
 function wire(): void {
   const root = app.getPath('userData');
-  const modelDir = path.join(root, 'models', 'chatterbox');
   const store = new Store(root);
-  const engine = new EngineHost(path.join(__dirname, 'worker.js'), modelDir, LM_VARIANT);
+  const engine = new EngineHost(enginePaths(root));
   let downloading: Promise<void> | null = null;
+  let cancelWanted = false;
   app.on('before-quit', () => engine.dispose());
+  // The first version's voice model is no longer used.
+  void fs.promises.rm(path.join(root, 'models', 'chatterbox'), { recursive: true, force: true }).catch(() => {});
+
+  /** Write down the words in one of a voice's samples; the voice model continues from them. */
+  const transcribeSample = async (voiceId: string, e: ExpressionId): Promise<Voice> => {
+    const text = (await engine.transcribe(store.samplePathFor(voiceId, e))).trim();
+    if (!text) throw new Error('No speech could be heard in that sample. Record or choose another one.');
+    return store.setTranscript(voiceId, e, text);
+  };
+  const notWhileGenerating = () => {
+    if (engine.busy) throw new Error('Wait for the current generation to finish, then save the sample.');
+  };
+
+  ipcMain.handle('system:slowEngine', () => process.arch === 'x64');
 
   ipcMain.handle('model:status', () => {
-    if (missingFiles(modelDir).length) return 'missing';
+    if (missingSets(root).length) return 'missing';
     engine.warm();
     return 'ready';
   });
-  ipcMain.handle('model:size', () => MODEL_FILES.reduce((n, f) => n + f.size, 0));
+  ipcMain.handle('model:size', () => totalSize());
   ipcMain.handle('model:download', () => {
-    downloading ??= ensureModel(modelDir, (done, total) => send('model:progress', done, total))
+    downloading ??= ensureModels(root, (done, total) => send('model:progress', done, total))
       .then(() => engine.warm())
       .finally(() => { downloading = null; });
     return downloading;
   });
 
   ipcMain.handle('voices:list', () => store.listVoices());
-  ipcMain.handle('voices:create', (_, name: unknown, audio: unknown) => store.createVoice(String(name ?? ''), checkAudio(audio, MIN_VOICE_SAMPLE)));
-  ipcMain.handle('voices:setExpressionSample', (_, id: unknown, e: unknown, audio: unknown) => {
+  ipcMain.handle('voices:create', async (_, name: unknown, audio: unknown) => {
+    notWhileGenerating();
+    const voice = store.createVoice(String(name ?? ''), checkAudio(audio, MIN_VOICE_SAMPLE));
+    try {
+      return await transcribeSample(voice.id, 'neutral');
+    } catch (err) {
+      store.deleteVoice(voice.id);
+      throw err;
+    }
+  });
+  ipcMain.handle('voices:setExpressionSample', async (_, id: unknown, e: unknown, audio: unknown) => {
     if (!isExpression(e)) throw new Error('Unknown expression.');
-    return store.setExpressionSample(String(id), e, audio === null ? null : checkAudio(audio, MIN_EXPRESSION_SAMPLE));
+    if (audio === null) return store.setExpressionSample(String(id), e, null);
+    notWhileGenerating();
+    store.setExpressionSample(String(id), e, checkAudio(audio, MIN_EXPRESSION_SAMPLE));
+    try {
+      return await transcribeSample(String(id), e);
+    } catch (err) {
+      if (e !== 'neutral') store.setExpressionSample(String(id), e, null);
+      throw err;
+    }
   });
   ipcMain.handle('voices:rename', (_, id: unknown, name: unknown) => store.renameVoice(String(id), String(name ?? '')));
   ipcMain.handle('voices:remove', (_, id: unknown) => store.deleteVoice(String(id)));
@@ -74,22 +118,34 @@ function wire(): void {
     const chunks = splitText(text);
     if (chunks.length === 0) throw new Error('Type something for your voice to say.');
     if (!isExpression(req.expression)) throw new Error('Unknown expression.');
-    const params = clampParams(req.params ?? PRESETS[req.expression]);
-    const voice = store.listVoices().find((v) => v.id === req.voiceId);
+    const expression = req.expression;
+    let voice = store.listVoices().find((v) => v.id === req.voiceId);
     if (!voice) throw new Error('That voice no longer exists.');
+    if (engine.busy) throw new Error('Another generation is already running.');
+    cancelWanted = false;
+    const outPath = path.join(root, 'history', `.pending-${randomUUID()}.f32`);
     try {
-      const samples = await engine.generate(chunks, store.samplePathFor(voice.id, req.expression), params, (chunk, of) => send('generate:progress', chunk, of));
-      if (samples.length === 0) throw new Error('The voice engine produced no audio for that text. Try rephrasing it.');
+      // Voices saved by the first version have no transcript yet.
+      const own = expression !== 'neutral' && voice.samples[expression] ? expression : 'neutral';
+      if (!voice.transcripts?.[own]?.trim()) voice = await transcribeSample(voice.id, own);
+      if (cancelWanted) throw new CancelledError();
+      const voiceId = voice.id;
+      const recipe = buildRecipe(voice, expression, (file) => store.sampleFile(voiceId, file));
+      const { sampleRate, samples } = await engine.generate({ chunks, ...recipe, outPath }, (chunk, of) => send('generate:progress', chunk, of));
+      if (samples === 0) throw new Error('The voice engine produced no audio for that text. Try rephrasing it.');
+      const audio = new Float32Array(new Uint8Array(await fs.promises.readFile(outPath)).buffer);
       return store.addHistory(
-        { voiceId: voice.id, voiceName: voice.name, text, expression: req.expression, params, durationSec: samples.length / SAMPLE_RATE },
-        encodeWav(samples),
+        { voiceId: voice.id, voiceName: voice.name, text, expression, durationSec: samples / sampleRate },
+        encodeWav(audio, sampleRate),
       );
     } catch (err) {
       if (err instanceof CancelledError) throw new Error(CANCELLED);
       throw err;
+    } finally {
+      fs.rmSync(outPath, { force: true });
     }
   });
-  ipcMain.handle('generate:cancel', () => engine.cancel());
+  ipcMain.handle('generate:cancel', () => { cancelWanted = true; engine.cancel(); });
 
   ipcMain.handle('history:list', () => store.listHistory());
   ipcMain.handle('history:remove', (_, id: unknown) => store.deleteHistory(String(id)));

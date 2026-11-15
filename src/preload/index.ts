@@ -9,6 +9,7 @@ const listen = (channel: string) => (cb: (...args: any[]) => void) => {
 };
 
 const api: OpenCloneApi = {
+  system: { slowEngine: call('system:slowEngine') },
   model: { status: call('model:status'), size: call('model:size'), download: call('model:download'), onProgress: listen('model:progress') },
   voices: {
     list: call('voices:list'), create: call('voices:create'), setExpressionSample: call('voices:setExpressionSample'),

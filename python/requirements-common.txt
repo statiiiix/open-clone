@@ -1,0 +1,14 @@
+transformers
+einops
+inflect
+addict
+wetext
+huggingface-hub
+pydantic
+tqdm
+simplejson
+sortedcontainers
+soundfile
+librosa
+safetensors
+faster-whisper

@@ -1,0 +1,5 @@
+# 2.5 is the oldest VoxCPM supports and still reads audio without an extra codec library.
+torch==2.5.1
+torchaudio==2.5.1
+numpy<2
+-r requirements-common.txt

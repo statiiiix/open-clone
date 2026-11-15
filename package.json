@@ -7,14 +7,16 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
-    "proof": "tsx scripts/engine-proof.ts",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc",
-    "dist:x64": "electron-vite build && electron-builder --mac --x64",
-    "dist:arm64": "electron-vite build && electron-builder --mac --arm64",
-    "dist": "electron-vite build && electron-builder --mac --x64 --arm64",
-    "e2e": "electron-vite build && tsx scripts/e2e-smoke.ts"
+    "dist:x64": "npm run runtime:x64 && electron-vite build && electron-builder --mac --x64",
+    "dist:arm64": "npm run runtime:arm64 && electron-vite build && electron-builder --mac --arm64",
+    "dist": "npm run dist:x64 && npm run dist:arm64",
+    "e2e": "electron-vite build && tsx scripts/e2e-smoke.ts",
+    "runtime:x64": "scripts/build-python-runtime.sh x64",
+    "runtime:arm64": "scripts/build-python-runtime.sh arm64",
+    "test:engine": "build/python-x64/bin/python3 -m unittest python/test_engine.py"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
@@ -30,11 +32,7 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
-    "vitest": "^5.1.0",
-    "@huggingface/tokenizers": "0.2.0"
-  },
-  "dependencies": {
-    "onnxruntime-node": "1.23.2"
+    "vitest": "^5.1.0"
   },
   "main": "out/main/index.js",
   "author": "statiiiix"

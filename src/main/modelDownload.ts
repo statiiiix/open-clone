@@ -3,25 +3,67 @@ import path from 'node:path';
 
 export interface ModelFile { path: string; size: number }
 
-export const MODEL_BASE_URL = 'https://huggingface.co/onnx-community/chatterbox-ONNX/resolve/main';
-/** Language-model variant shipped with the app; chosen in the engine proof. */
-export const LM_VARIANT = 'language_model_q4';
+export interface ModelSet { /** folder under the app's data folder */ dir: string; baseUrl: string; files: ModelFile[] }
 
-/** Exact byte sizes, so a partial or damaged file is never mistaken for a complete one. */
-export const MODEL_FILES: ModelFile[] = [
-  { path: 'tokenizer.json', size: 28543 },
-  { path: 'tokenizer_config.json', size: 244 },
-  { path: 'onnx/speech_encoder.onnx', size: 1184608 },
-  { path: 'onnx/speech_encoder.onnx_data', size: 591274880 },
-  { path: 'onnx/embed_tokens.onnx', size: 13286 },
-  { path: 'onnx/embed_tokens.onnx_data', size: 61640704 },
-  { path: 'onnx/language_model_q4.onnx', size: 227911 },
-  { path: 'onnx/language_model_q4.onnx_data', size: 353621248 },
-  { path: 'onnx/conditional_decoder.onnx', size: 6350448 },
-  { path: 'onnx/conditional_decoder.onnx_data', size: 533970816 },
+const HF = 'https://huggingface.co';
+
+/**
+ * What the app downloads on first launch. Revisions are pinned, and sizes are exact, so a
+ * partial or damaged file is never mistaken for a complete one.
+ */
+export const MODEL_SETS: ModelSet[] = [
+  {
+    // The voice model.
+    dir: 'models/voxcpm2',
+    baseUrl: `${HF}/openbmb/VoxCPM2/resolve/7936080b41163874f38610f46f438e2c0757f9fd`,
+    files: [
+      { path: 'config.json', size: 4336 },
+      { path: 'tokenizer.json', size: 3676772 },
+      { path: 'tokenizer_config.json', size: 5059 },
+      { path: 'special_tokens_map.json', size: 1632 },
+      { path: 'tokenization_voxcpm2.py', size: 2895 },
+      { path: 'audiovae.pth', size: 376951122 },
+      { path: 'model.safetensors', size: 4580080592 },
+    ],
+  },
+  {
+    // Writes down the words in a voice sample, which the voice model needs.
+    dir: 'models/whisper-small.en',
+    baseUrl: `${HF}/Systran/faster-whisper-small.en/resolve/d1d751a5f8271d482d14ca55d9e2deeebbae577f`,
+    files: [
+      { path: 'config.json', size: 2657 },
+      { path: 'tokenizer.json', size: 2128466 },
+      { path: 'vocabulary.txt', size: 422309 },
+      { path: 'model.bin', size: 483545366 },
+    ],
+  },
 ];
 
-export function missingFiles(dir: string, files: ModelFile[] = MODEL_FILES): ModelFile[] {
+const sizeOfSet = (set: ModelSet) => set.files.reduce((n, f) => n + f.size, 0);
+export const totalSize = (sets: ModelSet[] = MODEL_SETS) => sets.reduce((n, s) => n + sizeOfSet(s), 0);
+
+export function missingSets(root: string, sets: ModelSet[] = MODEL_SETS): ModelSet[] {
+  return sets.filter((s) => missingFiles(path.join(root, s.dir), s.files).length > 0);
+}
+
+/** Download every set that is incomplete, reporting one combined progress. */
+export async function ensureModels(
+  root: string,
+  onProgress: (done: number, total: number) => void,
+  fetchImpl: typeof fetch = fetch,
+  sets: ModelSet[] = MODEL_SETS,
+): Promise<void> {
+  const total = totalSize(sets);
+  const have = (upTo: number) => sets.slice(upTo).reduce((n, s) => n + sizeOfSet(s) - missingFiles(path.join(root, s.dir), s.files).reduce((m, f) => m + f.size, 0), 0);
+  let before = 0;
+  for (let i = 0; i < sets.length; i++) {
+    const later = have(i + 1); // already on disk in the sets still to come
+    await ensureModel(path.join(root, sets[i].dir), (done) => onProgress(Math.min(before + done + later, total), total), fetchImpl, sets[i].files, sets[i].baseUrl);
+    before += sizeOfSet(sets[i]);
+  }
+}
+
+export function missingFiles(dir: string, files: ModelFile[]): ModelFile[] {
   return files.filter((f) => {
     try { return fs.statSync(path.join(dir, f.path)).size !== f.size; } catch { return true; }
   });
@@ -30,15 +72,15 @@ export function missingFiles(dir: string, files: ModelFile[] = MODEL_FILES): Mod
 const sizeOf = (file: string) => { try { return fs.statSync(file).size; } catch { return 0; } };
 
 /**
- * Download whatever is missing. Each file is written to "<name>.part" and
+ * Download whatever is missing from one folder. Each file is written to "<name>.part" and
  * renamed only once its size is right, so an interrupted run can resume.
  */
 export async function ensureModel(
   dir: string,
   onProgress: (done: number, total: number) => void,
-  fetchImpl: typeof fetch = fetch,
-  files: ModelFile[] = MODEL_FILES,
-  baseUrl: string = MODEL_BASE_URL,
+  fetchImpl: typeof fetch,
+  files: ModelFile[],
+  baseUrl: string,
 ): Promise<void> {
   const total = files.reduce((n, f) => n + f.size, 0);
   const todo = missingFiles(dir, files);

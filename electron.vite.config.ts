@@ -4,11 +4,7 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   main: {
-    build: {
-      // The tokenizer is ESM-only, so it is bundled; onnxruntime-node stays external (native binary).
-      externalizeDeps: { exclude: ['@huggingface/tokenizers'] },
-      rollupOptions: { input: { index: resolve('src/main/index.ts'), worker: resolve('src/engine/worker.ts') } },
-    },
+    build: { rollupOptions: { input: { index: resolve('src/main/index.ts') } } },
   },
   preload: {
     build: { rollupOptions: { input: { index: resolve('src/preload/index.ts') } } },

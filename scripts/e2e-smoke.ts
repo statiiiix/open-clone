@@ -38,7 +38,6 @@ async function main() {
   console.log('generate disabled with empty text:', await gen.isDisabled());
   await page.fill('.composer textarea', 'Hello there. This is my cloned voice.');
   await page.click('.pill:has-text("Excited")');
-  console.log('sliders after Excited:', await page.locator('.slider output').allInnerTexts());
   const before = await page.locator('.history li').count();
   const t = Date.now();
   await gen.click();

@@ -8,13 +8,15 @@ files:
   - out/**
   - package.json
   - LICENSE
-  # the voice runtime ships binaries for every platform; keep only this Mac's chip
-  - "!node_modules/onnxruntime-node/bin/*/linux/**"
-  - "!node_modules/onnxruntime-node/bin/*/win32/**"
-  - "!node_modules/onnxruntime-node/bin/*/darwin/!(${arch})/**"
-  - "!node_modules/onnxruntime-node/{script,lib/**/*.ts,lib/**/*.map}"
-asarUnpack:
-  - node_modules/onnxruntime-node/**
+# The voice engine: a private Python for this Mac's chip, and the helper script it runs.
+extraResources:
+  - from: build/python-${arch}
+    to: python
+    filter:
+      - "**/*"
+      - "!.built-*"
+  - from: python/engine.py
+    to: engine/engine.py
 npmRebuild: false
 mac:
   category: public.app-category.music

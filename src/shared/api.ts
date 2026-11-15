@@ -1,16 +1,19 @@
-import type { ExpressionId, GenParams, HistoryItem, Voice } from './types';
+import type { ExpressionId, HistoryItem, Voice } from './types';
 
 export interface GenerateRequest {
   voiceId: string;
   text: string;
   expression: ExpressionId;
-  params: GenParams;
 }
 
 type Unsubscribe = () => void;
 
 /** Everything the window can ask the app to do. Exposed as `window.openclone`. */
 export interface OpenCloneApi {
+  system: {
+    /** True on Macs where a sentence takes minutes (Intel). */
+    slowEngine(): Promise<boolean>;
+  };
   model: {
     status(): Promise<'ready' | 'missing'>;
     /** total download size in bytes */
@@ -20,6 +23,7 @@ export interface OpenCloneApi {
   };
   voices: {
     list(): Promise<Voice[]>;
+    /** Saves the sample and writes down its words; this can take a while. */
     create(name: string, audio24k: Float32Array): Promise<Voice>;
     setExpressionSample(id: string, e: ExpressionId, audio24k: Float32Array | null): Promise<Voice>;
     rename(id: string, name: string): Promise<Voice>;

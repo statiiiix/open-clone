@@ -1,23 +1,14 @@
-import type { ExpressionId, GenParams } from './types';
+import type { ExpressionId } from './types';
 
-export const INTENSITY_RANGE = [0.25, 2.0] as const;
-export const VARIATION_RANGE = [0, 1.2] as const;
-
-export const PRESETS: Record<ExpressionId, { label: string } & GenParams> = {
-  neutral: { label: 'Neutral', intensity: 0.5, variation: 0.6 },
-  happy: { label: 'Happy', intensity: 0.8, variation: 0.8 },
-  sad: { label: 'Sad', intensity: 0.35, variation: 0.5 },
-  excited: { label: 'Excited', intensity: 1.2, variation: 0.9 },
-  angry: { label: 'Angry', intensity: 1.0, variation: 0.7 },
-  calm: { label: 'Calm', intensity: 0.3, variation: 0.4 },
+/**
+ * Each expression is a tone instruction placed in front of the sample's transcript.
+ * The wording is what the owner's approved clips were generated with.
+ */
+export const PRESETS: Record<ExpressionId, { label: string; instruction: string | null }> = {
+  neutral: { label: 'Neutral', instruction: null },
+  happy: { label: 'Happy', instruction: 'happy, warm, smiling tone' },
+  sad: { label: 'Sad', instruction: 'sad, slow, quiet tone' },
+  excited: { label: 'Excited', instruction: 'excited, cheerful tone' },
+  angry: { label: 'Angry', instruction: 'angry, forceful tone' },
+  calm: { label: 'Calm', instruction: 'calm, soft, relaxed tone' },
 };
-
-const clamp = (v: number, [lo, hi]: readonly [number, number], fallback: number) =>
-  Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
-
-export function clampParams(p: GenParams): GenParams {
-  return {
-    intensity: clamp(p.intensity, INTENSITY_RANGE, PRESETS.neutral.intensity),
-    variation: clamp(p.variation, VARIATION_RANGE, PRESETS.neutral.variation),
-  };
-}
