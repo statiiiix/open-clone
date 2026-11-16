@@ -64,7 +64,10 @@ Decisions the owner made:
   attention) and with its number format switched from bfloat16 to float32. Both were done by hand during listening tests.
 - Measured on the 2017 Intel MacBook Pro, float32, CPU: model load 76 s; one sentence of about 5 s takes 2 to 2.5 minutes with
   a 23 s prompt and 3 to 4.5 minutes with a 48 s prompt. A 60 s prompt is not measured and will be slower still.
-- Memory use is not measured. The model file is 4.6 GB, so expect well over 5 GB in use. Macs with 8 GB may not cope.
+- Measured 2026-11-16 with the app's own helper and a 60 s prompt on the same Mac: model load 61 s; transcribing the sample
+  45 s; one sentence of about 5 s takes 4 to 5 minutes; peak memory 10.8 GB. The app therefore needs a Mac with 16 GB.
+- Intel Macs report a usable graphics chip to PyTorch, but the model ran out of memory on it (6.8 GB limit), so Intel always
+  uses the processor.
 - Apple Silicon speed is not measured and cannot be on this machine.
 - Downloads: model 4.96 GB (`model.safetensors` 4.58 GB, `audiovae.pth` 0.38 GB, small config and tokenizer files).
 - Licences: VoxCPM2 Apache-2.0, PyTorch BSD, Python PSF, faster-whisper and Whisper models MIT. All allow commercial sale.
