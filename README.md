@@ -1,3 +1,5 @@
+![Open Clone](docs/images/banner.png)
+
 # Open Clone
 
 Clone your voice and make it speak with expression, entirely on your own Mac.
