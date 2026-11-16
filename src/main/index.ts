@@ -5,6 +5,7 @@ import path from 'node:path';
 import { CANCELLED, type GenerateRequest } from '../shared/api';
 import { PRESETS } from '../shared/presets';
 import { buildRecipe } from '../shared/recipe';
+import { repeatsItself } from '../shared/transcript';
 import { splitText } from '../shared/splitText';
 import { SAMPLE_RATE, type ExpressionId, type Voice } from '../shared/types';
 import { encodeWav } from '../shared/wav';
@@ -67,6 +68,7 @@ function wire(): void {
   const transcribeSample = async (voiceId: string, e: ExpressionId): Promise<Voice> => {
     const text = (await engine.transcribe(store.samplePathFor(voiceId, e))).trim();
     if (!text) throw new Error('No speech could be heard in that sample. Record or choose another one.');
+    if (repeatsItself(text)) throw new Error('That sample repeats the same sentence. Use a minute of varied speech, such as the script shown when you record.');
     return store.setTranscript(voiceId, e, text);
   };
   const notWhileGenerating = () => {
