@@ -1,4 +1,4 @@
-![Open Clone](docs/images/banner.png)
+[![Open Clone demo](docs/demo/open-clone-demo.gif)](docs/demo/open-clone-demo.mp4)
 
 # Open Clone
 
@@ -7,8 +7,6 @@ Clone your voice and make it speak with expression, entirely on your own Mac.
 Upload or record one minute of your voice, type some text, pick an expression (Neutral, Happy, Sad, Excited, Angry, Calm) and
 Open Clone speaks it in your voice. No account, no cloud: your voice samples and everything you generate stay on your computer.
 The only network request the app makes is the one-time download of its models.
-
-▶️ [Watch the 14-second demo](docs/demo/open-clone-demo.mp4)
 
 ## Downloads
 
