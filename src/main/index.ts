@@ -9,6 +9,7 @@ import { splitText } from '../shared/splitText';
 import { SAMPLE_RATE, type ExpressionId, type Voice } from '../shared/types';
 import { encodeWav } from '../shared/wav';
 import { CancelledError, EngineHost, type EnginePaths } from './engineHost';
+import { convertToMp3 } from './mp3';
 import { ensureModels, MODEL_SETS, missingSets, totalSize } from './modelDownload';
 import { Store } from './store';
 
@@ -54,7 +55,8 @@ function enginePaths(root: string): EnginePaths {
 function wire(): void {
   const root = app.getPath('userData');
   const store = new Store(root);
-  const engine = new EngineHost(enginePaths(root));
+  const paths = enginePaths(root);
+  const engine = new EngineHost(paths);
   let downloading: Promise<void> | null = null;
   let cancelWanted = false;
   app.on('before-quit', () => engine.dispose());
@@ -154,9 +156,14 @@ function wire(): void {
     const item = store.listHistory().find((h) => h.id === id);
     if (!item || !win) return false;
     const slug = item.text.replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').slice(0, 6).join('-').toLowerCase() || 'open-clone';
-    const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: `${slug}.wav`, filters: [{ name: 'WAV audio', extensions: ['wav'] }] });
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: `${slug}.mp3`,
+      filters: [{ name: 'MP3 audio', extensions: ['mp3'] }, { name: 'WAV audio (uncompressed)', extensions: ['wav'] }],
+    });
     if (canceled || !filePath) return false;
-    await fs.promises.copyFile(store.historyPath(item.id), filePath);
+    // The file name's ending decides the format.
+    if (filePath.toLowerCase().endsWith('.wav')) await fs.promises.copyFile(store.historyPath(item.id), filePath);
+    else await convertToMp3(paths, store.historyPath(item.id), filePath.toLowerCase().endsWith('.mp3') ? filePath : `${filePath}.mp3`);
     return true;
   });
 }

@@ -153,6 +153,11 @@ Chatterbox engine code, its tests, `onnxruntime-node`, the Chatterbox model down
 Voices saved before this change have a 30-second sample and no transcript. On first use they are transcribed and work as they
 are; the app does not force a re-record. A note on the voice says a one-minute sample would be more accurate.
 
+### MP3 export (added 2026-11-16 at the owner's request)
+
+Save offers MP3 (the default, 192 kbps) or WAV. The MP3 encoder is the one already inside the bundled Python, so nothing
+extra ships. This replaces the first design's "WAV only" non-goal.
+
 ## Risks
 
 1. **Apple Silicon is untested.** Speed, memory and whether the GPU path gives the same quality are all unknown until someone

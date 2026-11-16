@@ -9,6 +9,8 @@ Events:    loaded | transcript {text} | progress {chunk, of} | done {sampleRate,
            error {message}
 
 There is no cancel request: the app stops a job by ending this process.
+
+Two one-off modes run and exit:  --transcribe <whisperDir> <sample.f32>   and   --mp3 <in.wav> <out.mp3>
 """
 import json
 import os
@@ -60,13 +62,29 @@ def float32_model_dir(model_dir, scratch):
     return view
 
 
+def pick_device(machine, mps_available):
+    """Apple Silicon runs the model on its graphics chip. Intel Macs also offer one, but with too little memory."""
+    return "mps" if machine == "arm64" and mps_available else "cpu"
+
+
 def load_voxcpm(model_dir, scratch):
+    import platform
     import torch
     patch_attention(torch)
     from voxcpm import VoxCPM
-    on_gpu = torch.backends.mps.is_available()
-    path = model_dir if on_gpu else float32_model_dir(model_dir, scratch)
-    return VoxCPM.from_pretrained(path, load_denoiser=False, optimize=False, device="mps" if on_gpu else "cpu")
+    device = pick_device(platform.machine(), torch.backends.mps.is_available())
+    path = model_dir if device == "mps" else float32_model_dir(model_dir, scratch)
+    return VoxCPM.from_pretrained(path, load_denoiser=False, optimize=False, device=device)
+
+
+def read_sample(path):
+    """A stored voice sample (raw float32, 24 kHz mono) at a normal level."""
+    import numpy as np
+    audio = np.fromfile(path, dtype="<f4")
+    if audio.size == 0:
+        raise ValueError("The voice sample is empty.")
+    peak = float(np.abs(audio).max())
+    return audio * (TARGET_PEAK / peak) if peak > 0 else audio
 
 
 def load_whisper(whisper_dir):
@@ -74,13 +92,53 @@ def load_whisper(whisper_dir):
     return WhisperModel(whisper_dir, device="cpu", compute_type="int8")
 
 
+def transcribe_sample(whisper_dir, sample_path, load=load_whisper):
+    """The words spoken in a voice sample."""
+    import numpy as np
+    audio = read_sample(sample_path)
+    # Whisper listens at 16 kHz.
+    at16k = np.interp(np.arange(0, audio.size, SAMPLE_RATE / 16000), np.arange(audio.size), audio).astype(np.float32)
+    segments, _ = load(whisper_dir).transcribe(at16k, language="en", beam_size=5)
+    return " ".join(s.text.strip() for s in segments).strip()
+
+
+def transcribe_in_own_process(whisper_dir, sample_path):
+    """
+    Transcription runs in a short-lived process of its own: the transcriber and the voice model
+    each bring a copy of the same maths library, and one process cannot hold both.
+    """
+    import subprocess
+    out = subprocess.run([sys.executable, os.path.abspath(__file__), "--transcribe", whisper_dir, sample_path],
+                         capture_output=True, text=True)
+    lines = [line for line in out.stdout.splitlines() if line.strip()]
+    if out.returncode != 0 or not lines:
+        raise RuntimeError("The sample could not be transcribed. " + out.stderr.strip()[-300:])
+    return json.loads(lines[-1])["text"]
+
+
+def wav_to_mp3(src, dst, bitrate=192000):
+    """Re-encode a WAV file as MP3."""
+    import av
+    with av.open(src) as source, av.open(dst, "w", format="mp3") as target:
+        audio = source.streams.audio[0]
+        stream = target.add_stream("libmp3lame", rate=audio.codec_context.sample_rate)
+        stream.bit_rate = bitrate
+        stream.layout = "mono" if audio.codec_context.channels == 1 else "stereo"
+        resampler = av.AudioResampler(format=stream.codec_context.format, layout=stream.layout, rate=stream.codec_context.sample_rate)
+        for frame in source.decode(audio):
+            for converted in resampler.resample(frame):
+                target.mux(stream.encode(converted))
+        for converted in resampler.resample(None):
+            target.mux(stream.encode(converted))
+        target.mux(stream.encode(None))
+
+
 class Engine:
-    def __init__(self, emit, load_model=load_voxcpm, load_transcriber=load_whisper):
+    def __init__(self, emit, load_model=load_voxcpm, transcriber=transcribe_in_own_process):
         self.emit = emit
         self._load_model = load_model
-        self._load_transcriber = load_transcriber
+        self._transcriber = transcriber
         self.model = None
-        self.transcriber = None
         self.whisper_dir = None
         self.scratch = tempfile.mkdtemp(prefix="openclone-engine-")
         self._wavs = {}
@@ -106,33 +164,18 @@ class Engine:
             self.model = self._load_model(request["modelDir"], self.scratch)
         self.emit({"id": rid, "type": "loaded"})
 
-    def read_sample(self, path):
-        import numpy as np
-        audio = np.fromfile(path, dtype="<f4")
-        if audio.size == 0:
-            raise ValueError("The voice sample is empty.")
-        peak = float(np.abs(audio).max())
-        return audio * (TARGET_PEAK / peak) if peak > 0 else audio
-
     def sample_wav(self, path):
         """The sample as a WAV file at a normal level, which is what the model reads."""
         import soundfile
         key = (path, os.path.getmtime(path))
         if key not in self._wavs:
             out = os.path.join(self.scratch, f"sample-{len(self._wavs)}.wav")
-            soundfile.write(out, self.read_sample(path), SAMPLE_RATE)
+            soundfile.write(out, read_sample(path), SAMPLE_RATE)
             self._wavs[key] = out
         return self._wavs[key]
 
     def transcribe(self, rid, request):
-        import numpy as np
-        if self.transcriber is None:
-            self.transcriber = self._load_transcriber(self.whisper_dir)
-        audio = self.read_sample(request["samplePath"])
-        # Whisper listens at 16 kHz.
-        at16k = np.interp(np.arange(0, audio.size, SAMPLE_RATE / 16000), np.arange(audio.size), audio).astype(np.float32)
-        segments, _ = self.transcriber.transcribe(at16k, language="en", beam_size=5)
-        text = " ".join(s.text.strip() for s in segments).strip()
+        text = self._transcriber(self.whisper_dir, request["samplePath"])
         self.emit({"id": rid, "type": "transcript", "text": text})
 
     def generate(self, rid, request):
@@ -164,6 +207,13 @@ class Engine:
 
 
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--mp3":
+        wav_to_mp3(sys.argv[2], sys.argv[3])
+        return
+    if len(sys.argv) == 4 and sys.argv[1] == "--transcribe":
+        text = transcribe_sample(sys.argv[2], sys.argv[3])
+        print(json.dumps({"text": text}))
+        return
     # Libraries print to stdout; keep the real one for events only.
     events = os.fdopen(os.dup(sys.stdout.fileno()), "w", buffering=1)
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())

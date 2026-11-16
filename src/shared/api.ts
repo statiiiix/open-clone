@@ -40,7 +40,7 @@ export interface OpenCloneApi {
     remove(id: string): Promise<void>;
     /** WAV bytes */
     audio(id: string): Promise<Uint8Array>;
-    /** Opens a save dialog. Resolves false if the user closed it. */
+    /** Opens a save dialog offering MP3 or WAV. Resolves false if the user closed it. */
     saveAs(id: string): Promise<boolean>;
   };
 }
